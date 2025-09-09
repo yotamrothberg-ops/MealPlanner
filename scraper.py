@@ -1,17 +1,29 @@
+import random
 from logging import exception
-
+import unicodedata
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 import mealieapi
+import json
 
-MEALIE_API_KEY_FILE = "mealie_api_token"
-URL                 = "https://www.loveandlemons.com/vegetarian-recipes"
-MEALIE_BASE_URL     = "http://localhost:9000/api"
-DOMAIN              = "loveandlemons.com"
-USERNAME            = "admin@example1.com"
-PASSWORD            = "SuperSecret123"
-recipe_urls         = []
+MEALIE_API_KEY_FILE   = "txt files/mealie_api_token"
+UNIT_MEASUREMENT_FILE = "txt files/UnitsOfMeasurements"
+URL                   = "https://www.loveandlemons.com/vegetarian-recipes"
+MEALIE_BASE_URL       = "http://localhost:9000/api"
+DOMAIN                = "loveandlemons.com"
+USERNAME              = "admin@example1.com"
+PASSWORD              = "SuperSecret123"
+recipe_urls           = []
+
+with open(UNIT_MEASUREMENT_FILE, "r") as file:
+    units_of_measurement = file.read().strip()
+    units_of_measurement = units_of_measurement.split("\n")
+    for i, unit in enumerate(units_of_measurement):
+        if "/" in unit:
+            units_of_measurement.append(unit.split("/")[1])
+            units_of_measurement[i] = unit.split("/")[0]
+    print(units_of_measurement)
 
 with open(MEALIE_API_KEY_FILE, "r") as file:
     default_header = {
@@ -21,17 +33,17 @@ with open(MEALIE_API_KEY_FILE, "r") as file:
 
 def signup_mealie():
     login_payload = {
-        "group": "meal_planner",
-        "household": "family",
-        "email": USERNAME,
-        "username": USERNAME,
-        "fullName": "yotam rothberg",
-        "password": PASSWORD,
+        "group":           "meal_planner",
+        "household":       "family",
+        "email":           USERNAME,
+        "username":        USERNAME,
+        "fullName":        "yotam rothberg",
+        "password":        PASSWORD,
         "passwordConfirm": PASSWORD,
-        "advanced": False,
-        "private": False,
-        "seedData": False,
-        "locale": "en-US"
+        "advanced":        False,
+        "private":         False,
+        "seedData":        False,
+        "locale":          "en-US"
 
     }
     login_resp = requests.post(f"{MEALIE_BASE_URL}/api/users/register", json=login_payload)
@@ -102,14 +114,18 @@ def get_all_recipes():
 
 if __name__ == '__main__':
     recipes = get_all_recipes()
-    print(f"Found {len(recipes['items'])} recipes")
+    recipe_map = {}
+    # print(f"Found {len(recipes['items'])} recipes")
     # Step 2: Loop through and fetch details
-    for recipe in recipes['items']:
-        details = get_recipe_details(recipe["id"])
-        print("\n---", details["name"], "---")
-        for ing in details.get("recipeIngredient", []):
-            qty = ing.get("quantity") or ""
-            unit = ing.get("unit") or ""
-            food = ing.get("food") or ing.get("note") or ""
-            print(f"- {qty} {unit} {food}")
+    with (open('txt files/recipes', 'a', encoding ='utf-8') as recipe_file):
+        for recipe in recipes['items']:
+            details = get_recipe_details(recipe["id"])
+            print("---", details["name"], "---")
+            recipe_map[details["name"]] = {'ingredients': [], 'id': recipe["id"]}
 
+            for ing in details.get("recipeIngredient", []):
+                food = (ing.get("food") or ing.get("note") or "").split(",")[0]
+                if " or " in food: food = food.split(" or ")[random.randint(0, 1)].strip()
+                recipe_map[details["name"]]['ingredients'].append(food)
+
+        json.dump(recipe_map, recipe_file, indent=4)
